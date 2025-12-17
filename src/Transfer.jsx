@@ -1,24 +1,52 @@
+// BY GOD'S GRACE ALONE
+
 import { useState } from "react";
 import server from "./server";
+import  * as secp from "ethereum-cryptography/secp256k1"
+import {keccak256} from "ethereum-cryptography/keccak"
+import {toHex, utf8ToBytes} from "ethereum-cryptography/utils"
+import { useEffect } from "react";
 
-function Transfer({ address, setBalance }) {
+function Transfer({ address, setBalance, privateKey }) {
   const [sendAmount, setSendAmount] = useState("");
   const [recipient, setRecipient] = useState("");
+  const [signature, setSignature] = useState("");
+
+  const hashMessage = (message) =>{
+    const messageInBytes = utf8ToBytes(message);
+    return keccak256(messageInBytes);
+  }
+
+  const signMessage = async (message, privateKey) => {
+    const hash = hashMessage(message);
+    const [signature, recovery] =
+      secp.secp256k1.sign(hash, privateKey);
+
+    return { hash, signature, recovery };
+  }
+
+  async function recoverPublicKey(message, signature, recovery) {
+    const hash = hashMessage(message);
+
+    return await signature.recoverPublicKey(hash).toRawBytes();
+  }
 
   const setValue = (setter) => (evt) => setter(evt.target.value);
 
+
   async function transfer(evt) {
     evt.preventDefault();
-
     try {
+
       const {
         data: { balance },
       } = await server.post(`send`, {
-        sender: address,
+        sender: privateKey,
         amount: parseInt(sendAmount),
         recipient,
       });
       setBalance(balance);
+      
     } catch (ex) {
       alert(ex.response.data.message);
     }
@@ -40,7 +68,7 @@ function Transfer({ address, setBalance }) {
       <label>
         Recipient
         <input
-          placeholder="Type an address, for example: 0x2"
+          placeholder="Type a public key, without the 0x"
           value={recipient}
           onChange={setValue(setRecipient)}
         ></input>
